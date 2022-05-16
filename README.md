@@ -267,3 +267,19 @@ yourAction { request: YourRequest =>
 ```
 
 You can compose action builders inside each other or create a custom `ActionBuilder` for each package you work with.
+
+### Rendering Content as JSON
+Play handles the work of converting resources to JSON using Play JSON. 
+
+If the resource has a companion object that implicitly defines its JSON format, Play JSON will look this up when handling an instance of the class. This means that when the controller converts a class instance to JSON, no additional impots or setup are required.
+
+```Scala
+case class PostResource(id: String, link: String, title: String, body: String)  
+  
+object PostResource {  
+/**  
+* Mapping to read/write a PostResource out as a JSON value. 
+*/ 
+ implicit val format: Format[PostResource] = Json.format  
+}
+```
