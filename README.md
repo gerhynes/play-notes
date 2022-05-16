@@ -133,12 +133,15 @@ Play’s routing DSL (technically "String Interpolation Routing DSL" / SIRD) use
 GET("/" ? q_?"sort=$sort" & q_?"count=${ int(count) }")
 ```
 
-The Router has a Controller injected into it.
+The Router has a Controller injected into it. This Controller handles processing a HTTP request into a HTTP response in the context of an Action. 
 
-This Controller handles processing a HTTP request into a HTTP response in the context of an Action. A Controller extends `play.api.mvc.BaseController`, which contains utility methods and constants for working with HTTP. In particular, a Controller contains `Result` objects such as `Ok` and `Redirect`, and `HeaderNames` like `ACCEPT`.
+```Scala
+class PostRouter @Inject()(controller: PostController) extends SimpleRouter {...}
+```
+
+A Controller extends `play.api.mvc.BaseController`, which contains utility methods and constants for working with HTTP. In particular, a Controller contains `Result` objects such as `Ok` and `Redirect`, and `HeaderNames` like `ACCEPT`.
 
 Using the action, the Controller passes in a block of code that takes a `Request` as an implicit (any in-scope method that takes an implicit result as a parameter will use this request automatically). The block must return either a `Result` or a `Future[Result]` depending on whether the action was called as `action {}` or `action.async{}`.
-
 
 ```scala
 import javax.inject.Inject
@@ -175,9 +178,7 @@ def show(id: String): Action[AnyContent] = PostAction.async { implicit request =
 }
 ```
 
-
 ### Processing Form Input
-
 In this example a POST request is passed to the `process` method on the PostController. `process` calls `processJsonPost` .
 
 Here, `form.bindFromRequest()` will map input from the HTTP request to a `play.api.data.Form`, and handle form validation and error reporting.
@@ -221,3 +222,48 @@ The form binds to the HTTP request using the names in the mapping – `title` an
 ```scala
 case class PostFormInput(title: String, body: String)
 ```
+
+### Using Actions
+In a Controller, methods are connected to an Action (in this example, the `PostAction.async` method).
+
+```scala
+def index: Action[AnyContent] = PostAction.async { implicit request =>
+  logger.trace("index: ")
+  postResourceHandler.find.map { posts =>
+    Ok(Json.toJson(posts))
+  }
+}
+```
+
+The `PostAction.async` method is a custom action builder that can handle `PostRequest`s. 
+
+`PostAction` is involved in each action in the Controller. It mediates the processing of a request into a response, adds context to the request and enriches the response with headers and cookies. ActionBuilders are essential for handling authentication, authorization and monitoring functionality.
+
+ActionBuilders work through a process called action composition. The ActionBuilder class has a method called `invokeBlock` that takes in a `Request` and a function (also known as a block, lambda or closure) that accepts a `Request` of a given type, and produces a `Future[Result]`.
+
+```scala
+class YourRequest[A](request: Request[A], val yourClass: YourClass) extends WrappedRequest(request)
+
+class YourAction @Inject()(parsers: PlayBodyParsers)(implicit val executionContext: ExecutionContext) extends ActionBuilder[YourRequest, AnyContent] {
+
+  type YourRequestBlock[A] = YourRequest[A] => Future[Result]
+
+  override def parser: BodyParser[AnyContent] = parsers.defaultBodyParser
+
+  override def invokeBlock[A](request: Request[A], block: YourRequestBlock[A]): Future[Result] = {
+    block(new YourRequest[A](request, YourClass()))
+  }
+}
+```
+
+You create an `ActionBuilder[YourRequest, AnyContent]`, override `invokeBlock`, and then call the function with an instance of `YourRequest`.
+
+Then, when you call `yourAction`, the request type is `YourRequest` and `request.yourClass` will be added automatically.
+
+```scala
+yourAction { request: YourRequest =>
+  Ok(request.yourClass.toString)
+}
+```
+
+You can compose action builders inside each other or create a custom `ActionBuilder` for each package you work with.
