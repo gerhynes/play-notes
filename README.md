@@ -175,3 +175,49 @@ def show(id: String): Action[AnyContent] = PostAction.async { implicit request =
 }
 ```
 
+
+### Processing Form Input
+
+In this example a POST request is passed to the `process` method on the PostController. `process` calls `processJsonPost` .
+
+Here, `form.bindFromRequest()` will map input from the HTTP request to a `play.api.data.Form`, and handle form validation and error reporting.
+
+If the `PostFormInput` passes validation, it’s passed to the resource handler, using the `success` method. If the form processing fails, then the `failure` method is called and the `FormError` is returned in JSON format.
+
+```scala
+private val form: Form[PostFormInput] = {
+  import play.api.data.Forms._
+
+  Form(
+    mapping(
+      "title" -> nonEmptyText,
+      "body" -> text
+    )(PostFormInput.apply)(PostFormInput.unapply)
+  )
+}
+
+def process: Action[AnyContent] = PostAction.async { implicit request =>
+  logger.trace("process: ")
+  processJsonPost()
+}
+
+private def processJsonPost[A]()(implicit request: PostRequest[A]): Future[Result] = {
+  def failure(badForm: Form[PostFormInput]) = {
+    Future.successful(BadRequest(badForm.errorsAsJson))
+  }
+
+  def success(input: PostFormInput) = {
+    postResourceHandler.create(input).map { post =>
+      Created(Json.toJson(post)).withHeaders(LOCATION -> post.link)
+    }
+  }
+
+  form.bindFromRequest().fold(failure, success)
+}
+```
+
+The form binds to the HTTP request using the names in the mapping – `title` and `body`  – to the `PostFormInput` case class:
+
+```scala
+case class PostFormInput(title: String, body: String)
+```
