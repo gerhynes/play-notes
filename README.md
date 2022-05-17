@@ -495,4 +495,138 @@ You can use an empty `Action` implementation defined as `TODO`. The result is a 
 def index(name: String) = TODO
 ```
 
+### HTTP Routing
+The router is the component in charge of translating each incoming HTTP request into an Action.
 
+A HTTP request is seen as an event by Play. The event contains two main pieces of information.
+
+- the request path (`/clients/1`, `/photos/latest`), including the query string
+- the HTTP method
+
+The `routes` file defines the routes. This file is compiled, which means that route errors are shown directly in the browser during development.
+
+Play's default routes generator creates a Router class that accexpts controller instances in an `@Inject`-annotated constructor. This means the class can be used with dependency injection and can also be manually instantiated using the constructor.
+
+The `conf/routes` file lists all routes used by the application. Each route consists of a HTTP method, a URL pattern and a call to an `Action` generator.
+
+```
+GET   /users/:id          controllers.Users.show(id: Long)
+```
+
+You can tell the routes file to use a different router under a specific prefix by using “->” followed by the given prefix.
+
+```
+->      /api                        api.MyRouter
+```
+
+#### URI Patterns
+The URI pattern can be static `/users/all` or dynamic `/users/:id`. The default matching strategy for a dynamic part is defined by the regular expression `[^/]+`, meaning that any dynamic part defined as `:id` will match exactly one URI path segment. Unlike other pattern types, path segments are automatically URI-decoded in the route (before being passed to the controller) and encoded in the reverse route.
+
+The default matching strategy for a dynamic part is defined by the regular expression `[^/]+`, meaning that any dynamic part defined as `:id` will match exactly one URI path segment. Unlike other pattern types, path segments are automatically URI-decoded in the route, before being passed to your controller, and encoded in the reverse route.
+
+If you want a dynamic part to capture more than one URI path segment, separated by forward slashes, you can define the dynamic part using the `*id` syntax, also known as a wildcard pattern, which uses the `.*` regular expression.
+
+```
+GET   /files/*name          controllers.Application.download(name)
+```
+
+Here, for a request like `GET /files/images/logo.png`, the `name` dynamic part will capture the `images/logo.png` value.
+
+Note that dynamic parts spanning several `/` are not decoded by the router or encoded by the reverse router. It is your responsibility to validate the raw URI segment as you would for any user input. The reverse router simply does a string concatenation, so you will need to make sure the resulting path is valid, and does not, for example, contain multiple leading slashes or non-ASCII characters.
+
+You can also define your own custom regular expression for the dynamic part, using the `$id<regex>` syntax.
+
+```
+GET   /items/$id<[0-9]+>    controllers.Items.show(id: Long)
+```
+
+Just like with wildcard routes, the parameter is not decoded by the router or encoded by the reverse router. You’re responsible for validating the input.
+
+#### The Action Generator Method
+The last part of the route must be a call to a method that returns an `Action`. This will usually be a controller action method.
+
+If the action method has parameters, these will be searched for in the request URI and extracted from either the URI path itself or from the query string.
+
+```routes
+GET   /                     controllers.Application.homePage()
+
+GET   /:page                controllers.Application.show(page)
+```
+
+```scala
+def show(page: String) = Action {
+  loadContentFromDatabase(page)
+    .map { htmlContent =>
+      Ok(htmlContent).as("text/html")
+    }
+    .getOrElse(NotFound)
+}
+```
+
+Play supports the following Parameter Types:
+
+-   String
+-   Int
+-   Long
+-   Double
+-   Float
+-   Boolean
+-   UUID
+-   AnyVal wrappers for other supported types
+
+For String parameters the type is optional. 
+
+Play can transform the incoming parameter into a specific Scala type if you explicitly type the parameter.
+
+```routes
+GET   /clients/:id          controllers.Clients.show(id: Long)
+```
+
+```scala
+def show(id: Long) = Action {
+  Client
+    .findById(id)
+    .map { client =>
+      Ok(views.html.Clients.display(client))
+    }
+    .getOrElse(NotFound)
+}
+```
+
+If necessary, you can use a fixed value as a parameter.
+
+```routes
+# Extract the page parameter from the path, or fix the value
+GET   /                     controllers.Application.show(page = "home")
+GET   /:page                controllers.Application.show(page)
+```
+
+You can also provide a default value that will be used if no value is found in the incoming request.
+
+```routes
+# Pagination links, like /clients?page=3
+GET   /clients              controllers.Clients.list(page: Int ?= 1)
+```
+
+You can also specify list parameters for repeated query string parameters.
+
+```routes
+# The item parameter is a list.
+# /api/list-items?item=red&item=new&item=slippers
+GET   /api/list-items      controllers.Api.listItems(item: List[String])
+
+# or
+
+# /api/list-int-items?item=1&item=42
+GET   /api/list-int-item
+```
+
+#### Routing Priority
+If multiple routes match the same request the first route in declaration order is used.
+
+#### Reverse Routing
+The router can also be used to generate a URL from within Scala. This lets you centralize all URI patterns in a single configuration file for easier refactoring.
+
+For each controller used in the routes file, the router will generate a "reverse controller" in the `routes` package, having the same action methods, with the same signature, but returning a `play.api.mvc.Call` instead of a `play.api.mvc.Action`.
+
+The `play.api.mvc.Call` defines a HTTP call, and provides both the HTTP method and the URI.
