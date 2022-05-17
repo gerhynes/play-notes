@@ -505,7 +505,11 @@ A HTTP request is seen as an event by Play. The event contains two main pieces o
 
 The `routes` file defines the routes. This file is compiled, which means that route errors are shown directly in the browser during development.
 
-Play's default routes generator creates a Router class that accexpts controller instances in an `@Inject`-annotated constructor. This means the class can be used with dependency injection and can also be manually instantiated using the constructor.
+#### Dependency Injection
+
+Play's default routes generator creates a Router class that accepts controller instances in an `@Inject`-annotated constructor. This means the class can be used with dependency injection and can also be manually instantiated using the constructor.
+
+#### The `routes` file
 
 The `conf/routes` file lists all routes used by the application. Each route consists of a HTTP method, a URL pattern and a call to an `Action` generator.
 
@@ -630,3 +634,119 @@ The router can also be used to generate a URL from within Scala. This lets you c
 For each controller used in the routes file, the router will generate a "reverse controller" in the `routes` package, having the same action methods, with the same signature, but returning a `play.api.mvc.Call` instead of a `play.api.mvc.Action`.
 
 The `play.api.mvc.Call` defines a HTTP call, and provides both the HTTP method and the URI.
+
+If you create a controller and map it in the `conf/routes` file, you can reverse the URL using the `routes` subpackage in the `controllers` package.
+
+```scala
+package controllers
+  import javax.inject.Inject
+
+  import play.api._
+  import play.api.mvc._
+
+  class Application @Inject() (cc: ControllerComponents) extends AbstractController(cc) {
+    def hello(name: String) = Action {
+      Ok("Hello " + name + "!")
+    }
+  }
+```
+
+If you map it in the `conf/routes` file:
+
+```routes
+# Hello action
+GET   /hello/:name          controllers.Application.hello(name)
+```
+
+You can then reverse the URL to the `hello` action method, by using the `controllers.routes.Application` reverse controller:
+
+```scala
+// Redirect to /hello/Bob
+def helloBob = Action {
+  Redirect(routes.Application.hello("Bob"))
+}
+```
+
+The reverse action method works by taking your parameters and substituting them back into the route pattern. In the case of path segments (such as `:id`), the value is encoded before the substitution is done. For regex and wildcard patterns, the string is substituted in raw form, since the value may span multiple segments.
+
+#### Relative Routes
+The routes returned by `play.mvc.Call` are always absolute. This can lead to problems when requests to your web application are rewritten by HTTP proxies, load balancers and API gateways.
+
+Using a relative route can be useful when:
+- Your app is hosted behind a web gateway that prefixes all routes with something other than what's configured in your `conf/routes` file, and roots your app at a route it's not expecting
+- Your stylesheets are dynamically rendered and may end up getting served from different URLs by a CDN
+
+To generate a relative route, you need the start route. This can be retrieved from the current `RequestHeader` or passed as a `String` parameter.
+
+```scala
+package controllers
+
+import javax.inject._
+import play.api.mvc._
+
+@Singleton
+class Relative @Inject() (cc: ControllerComponents) extends AbstractController(cc) {
+  def helloview() = Action { implicit request =>
+    Ok(views.html.hello("Bob"))
+  }
+
+  def hello(name: String) = Action {
+    Ok(s"Hello $name!")
+  }
+}
+```
+
+```routes
+GET     /foo/bar/hello              controllers.Relative.helloview
+GET     /hello/:name                controllers.Relative.hello(name)
+```
+
+You can then define relative routes using the reverse router and include an additional call to `relative`.
+
+```html
+@(name: String)(implicit request: RequestHeader)
+
+<h1>Hello @name</h1>
+
+<a href="@routes.Relative.hello(name)">Absolute Link</a>
+<a href="@routes.Relative.hello(name).relative">Relative Link</a>
+```
+
+**Note:** The `Request` passed from the controller is cast to a `RequestHeader` and is marked `implicit` in the view parameters. It is then passed implicitly to the call to `relative`.
+
+When requesting `/something/somethingelse/hello`, the generated HTML will look like this:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Bob</title>
+    </head>
+    <body>
+      <a href="/hello/Bob">Absolute Link</a>
+      <a href="../../hello/Bob">Relative Link</a>
+    </body>
+</html>
+```
+
+#### The Default Controller
+Play includes a `Default` controller with a couple of useful actions. These can be invoked directly from the `routes` file.
+
+```routes
+# Redirects to https://www.playframework.com/ with 303 See Other
+GET   /about      controllers.Default.redirect(to = "https://www.playframework.com/")
+
+# Responds with 404 Not Found
+GET   /orders     controllers.Default.notFound
+
+# Responds with 500 Internal Server Error
+GET   /clients    controllers.Default.error
+
+# Responds with 501 Not Implemented
+GET   /posts      controllers.Default.todo
+```
+
+You can redirect to an external website, but also to another action.
+
+#### Custom Routing
+Play provides a DSL for defining embedded routers called the String Interpolating Routing DSL, or SIRD for short. This DSL has many uses, including embedding a light weight Play server, providing custom or more advanced routing capabilities to a regular Play application, and mocking REST services for testing.
