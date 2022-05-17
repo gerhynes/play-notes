@@ -283,3 +283,73 @@ object PostResource {
  implicit val format: Format[PostResource] = Json.format  
 }
 ```
+
+## Main Concepts
+### Configuration API
+Play provides a Scala wrapper, `Configuration`, around the Typesafe config library.
+
+Usually, you'll access a `Configuration` object through dependency injection.
+
+```scala
+class MyController @Inject() (config: Configuration, c: ControllerComponents) extends AbstractController(c) {
+  def getMyValue = Action {
+    Ok(config.get[String]("myValue"))
+  }
+}
+```
+
+The `get` method is used to access a single value at a path in the configuration file.
+
+```scala
+// value1 = value
+config.get[String]("value1")
+
+// value2 = 8
+config.get[Int]("value2")
+
+// value3 = true
+config.get[Boolean]("value3")
+
+// listOfValues = ["value2", "value3"]
+config.get[Seq[String]]("listOfValues")
+```
+
+`Configuration` accepts an implicit `ConfigLoader` but for common types like `String`, `Int` and `Seq[String]`, there are already loaders defined.
+
+`Configuration` also supports validating against a set of valid values.
+
+```scala
+config.getAndValidate[String]("val1", Set("val2", "val3"))
+```
+
+You can define your own `ConfigLoader` to convert configuration into a custom type.
+
+```scala
+case class AppConfig(title: String, baseUri: URI)
+
+object AppConfig {
+  implicit val configLoader: ConfigLoader[AppConfig] = new ConfigLoader[AppConfig] {
+    def load(rootConfig: Config, path: String): AppConfig = {
+      val config = rootConfig.getConfig(path)
+      AppConfig(
+        title = config.getString("title"),
+        baseUri = new URI(config.getString("baseUri"))
+      )
+    }
+  }
+}
+```
+
+Then you can use `config.get` as normal:
+
+```scala
+// app.config = {
+//   title = "My App
+//   baseUri = "https://example.com/"
+// }
+config.get[AppConfig]("app.config")
+```
+
+You can support optional configuration keys using the `getOptional[A]` method, which will return `null` if the key doesn't exist. But Play recommends setting optional keys to `null` in the configuration file and using `get[Option[A]]` instead. Reserve `getOptional[A]` for interfacing with libraries that use configuration in a non-standard way. 
+
+### HTTP Programming
