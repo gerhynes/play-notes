@@ -353,3 +353,146 @@ config.get[AppConfig]("app.config")
 You can support optional configuration keys using the `getOptional[A]` method, which will return `null` if the key doesn't exist. But Play recommends setting optional keys to `null` in the configuration file and using `get[Option[A]]` instead. Reserve `getOptional[A]` for interfacing with libraries that use configuration in a non-standard way. 
 
 ### HTTP Programming
+#### Actions, Controllers and Results
+An Action is a function (of type `play.api.mvc.Request => play.api.mvc.Result`) that handles a request and generates a result to be sent to the client.
+
+```scala
+def echo = Action { request =>
+  Ok("Got request [" + request + "]")
+}
+```
+An Action returns a `play.api.mvc.Result` value, representing the HTTP response to send to the web client. Here `Ok` produces a 200 OK response with a `text/plain` response body.
+
+In any controller that extends `BaseController`, the `Action` value is the default action builder. This action builder contains several helpers for creating `Action`s.
+
+The simplest type of Action takes as an argument an expression block returning a result. This, however, doesn't give you access to the incoming request.
+
+```scala
+Action {
+  Ok("Hello world")
+}
+```
+
+To make use of the incoming request, use an Action builder that takes as an argument a function `Request => Result` .
+
+```scala
+Action { request =>
+  Ok("Got request [" + request + "]")
+}
+```
+
+It can be useful to mark the `request` parameter as `implicit` so it can be implicitly used by other APIs that need it.
+
+```scala
+Action { implicit request =>
+  Ok("Got request [" + request + "]")
+}
+```
+
+If your controller has additional methods, you can pass the implicit request to them from the action.
+
+```scala
+def action = Action { implicit request =>
+  anotherMethod("Some string parameter")
+  Ok("Got request [" + request + "]")
+}
+
+def anotherMethod(param: String)(implicit request: Request[_]) = {
+  // do something that needs access to the request
+}
+```
+
+You can also create an Action value by specifying an additional `BodyParser` argument. If you don't specify a `BodyParser` argument, the action builkder uses a default Any content body parser.
+
+```scala
+Action(parse.json) { implicit request =>
+  Ok("Got request [" + request + "]")
+}
+```
+
+#### Controllers Generate Actions
+A controller is fundamentally an object that generates Action values. Controllers are usually defined as classes to take advantage of Dependency Injection.
+
+The simplest use case for an action generator method is a method with no parameters that returns an `Action` value.
+
+```scala
+package controllers
+
+import javax.inject.Inject
+import play.api.mvc._
+
+class Application @Inject() (cc: ControllerComponents) extends AbstractController(cc) {
+	def index = Action {
+		Ok("It works!")
+	}
+}
+```
+
+Action generator methods can have parameters and these parameters can be captured by the `Action` closure.
+
+```scala
+def hello(name: String) = Action {
+  Ok("Hello " + name)
+}
+```
+
+#### Results
+Results are defined by `play.api.mvc.Result`. A relatively simple result from a controller method will be: a HTTP result with a status code, a set of headers, and a body.
+
+```scala
+import play.api.http.HttpEntity
+
+def index = Action {
+  Result(
+    header = ResponseHeader(200, Map.empty),
+    body = HttpEntity.Strict(ByteString("Hello world!"), Some("text/plain"))
+  )
+}
+```
+
+There are several helpers, such as `Ok`, to create common results.
+
+```scala
+def index = Action {
+  Ok("Hello world!")
+}
+```
+
+Here are several examples to create various results:
+
+```scala
+val ok           = Ok("Hello world!")
+val notFound     = NotFound
+val pageNotFound = NotFound(<h1>Page not found</h1>)
+val badRequest   = BadRequest(views.html.form(formWithErrors))
+val oops         = InternalServerError("Oops")
+val anyStatus    = Status(488)("Strange response type")
+```
+
+All of these helpers can be found in the `play.api.mvc.Results` trait and companion object.
+
+#### Redirects
+Redirecting the browser to another URL is another kind of simple result. These results don't take a response body. Again, there are helpers to create redirect results.
+
+```scala
+def index = Action {
+  Redirect("/user/home")
+}
+```
+
+The default is to use a `303 SEE_OTHER` response type, but you can also set a more specific status code if you need one.
+
+```scala
+def index = Action {
+  Redirect("/user/home", MOVED_PERMANENTLY)
+}
+```
+
+#### Dummy Pages
+You can use an empty `Action` implementation defined as `TODO`. The result is a standard "Not implemented yet" result page.
+
+```scala
+def index(name: String) = TODO
+```
+
+
