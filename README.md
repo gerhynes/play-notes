@@ -750,3 +750,51 @@ You can redirect to an external website, but also to another action.
 
 #### Custom Routing
 Play provides a DSL for defining embedded routers called the String Interpolating Routing DSL, or SIRD for short. This DSL has many uses, including embedding a light weight Play server, providing custom or more advanced routing capabilities to a regular Play application, and mocking REST services for testing.
+
+### Manipulating HTTP Results
+#### Changing the default `Content-Type`
+The result content type is automatically inferred from the Scala value specified as the result body.
+
+For example `Ok("Hello World")` will set the `Content-Type` header to `text/plain`.
+
+You can use the `as` method to set a different `Content-Type` header: `Ok(<h1>Hello World</h1>).as(HTML)`.
+
+#### Manipulating HTTP Headers
+You cna add or update any HTTP header.
+
+`Ok("Hello World").withHeaders(CACHE_CONTROL -> "max-age=3600", ETAG -> "xx")`
+
+Setting a header will discard the previous value if it existed.
+
+#### Setting and Discarding Cookies
+You can add Cokkies to the HTTP response using the `withCookies` and `bakeCookies` methods.
+
+`Ok("Hello World").withCookies(Cooke("theme", "dark")).bakeCookies()`
+
+You can also discard exiting Cookies.
+
+`result.discardCookies(DiscardingCookie("theme"))`
+
+Setting and discarding Cookies can be done in the same response.
+
+`result.withCookies(Cookie("theme", "dark")).discardingCookies(DiscardingCookie("discount"))`
+
+#### Changing the Charset for Text-based HTTP Responses
+Play handles the response charset automatically and uses `utf-8` by default. You can override it using the `play.api.mvc.Codec` class.
+
+```scala
+class Application @Inject() (cc: ControllerComponents) extends AbstractController(cc) {
+  implicit val myCustomCharset = Codec.javaSupported("iso-8859-1")
+
+  def index = Action {
+    Ok(<h1>Hello World!</h1>).as(HTML)
+  }
+}
+```
+
+Here, because there's an implicit charset value in scope, it will be used by the `Ok` method to convert messages into `ISO-8859-1` encoded bytes and generate the `text/html; charset=iso-8859-1` Content-Type header.
+
+#### Range Results
+Play supports partial responses (a `206 Partial Content` response) if a satisfiable `Range` header is in the request. It also returns an `Accept-Ranges: bytes` for the delivered `Result`.
+
+When the request `Range` is not satisfiable, for example, if the range in the request’s `Range` header field does not overlap the current extent of the selected resource, then a HTTP status `416 Range Not Satisfiable` is returned.
