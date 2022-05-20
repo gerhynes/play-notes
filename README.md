@@ -798,3 +798,96 @@ Here, because there's an implicit charset value in scope, it will be used by the
 Play supports partial responses (a `206 Partial Content` response) if a satisfiable `Range` header is in the request. It also returns an `Accept-Ranges: bytes` for the delivered `Result`.
 
 When the request `Range` is not satisfiable, for example, if the range in the request’s `Range` header field does not overlap the current extent of the selected resource, then a HTTP status `416 Range Not Satisfiable` is returned.
+
+### Session and Flash Scopes
+If you need to keep data across multiple HTTP requests, you can save it in the Session or the Flash scope. Data stored in the Session is available during the whole user session, while data stored in the flash scope is only available to the next request.
+
+#### Working with Cookies
+Session and Flash data are not stored in the server but are added to each subsequent HTTP Request, using HTTP cookies.
+
+For this reasong:
+- the data size is limited (up to 4KB)
+- You can only store string values (though you can serialize JSON)
+- Information in a cookie is visible in the browser and so can expose sensitive data
+- Cookie information is immutable to the original request, and only available to subsequent requests
+
+When you modify a cookie, you are providing information to the response and Play must parse it again to see the updated value. If you want to ensure the session information is current, you should always pair modification of a session with a redirect.
+
+#### Session Configuration
+The default name for the Session cookie is `PLAY_SESSION`. This can be changed by configuring the `play.http.session.cookieName` key in `application.conf`.
+
+By default, there is no technical timeout for the Session. It expires when the user closes the browser. If you need a functional timeout for a specific application, you can set the `play.http.session.maxAge` key in `application.conf` and this will also set `play.http.session.jwt.expiresAfter` to the same value (in seconds).
+
+The `maxAge` property will remove the cookie from the browser and the JWT `exp` claim will be set in the cookie, making it invalid after the given duration.
+
+#### Storing Data in the Session
+Since the Session is a Cookie, it's also a HTTP header. You can manipulate the session data the same way you manipulate other result properties.
+
+The `withSession` method will replace the entire session.
+
+`Redirect("/home").withSession("connected" -> "user@gmail.com")`
+
+If you need to add an element to an existing Session, add it to the incoming session and set this as the new session.
+
+`Redirect("/home").withSession(request.session + ("isCool" -> "true"))`
+
+You can remove a value from an incoming session the same way.
+
+`Redirect("/home").withSession(request.session - "theme")`
+
+#### Reading a Session Value
+You can retrieve the incoming session from the HTTP request.
+
+```Scala
+def index = Action { request => 
+	request.session
+	.get("connected")
+	.map { user => 
+		Ok("Hello" + user)
+	}
+	.getOrElse {
+		Unauthorized("Woops, you're not connected")
+	}
+}
+```
+
+#### Discarding a Session
+`withNewSession` will discard the existing session.
+
+`Redirect("/home").withNewSession`
+
+#### Flash Scope
+The Flash scope works like a Session except data is kept for only one request.
+
+```Scala
+def index = Action { implicit request =>
+	Ok {
+		request.flash.get("success").getOrElse("Welcome!")
+	}
+}
+
+def save = Action {
+	Redirect("/home").flashing("success" -> "Item created") 
+}
+```
+
+To retrieve the Flash scope value in a view, add an implicit Flash parameter.
+
+```Scala
+@()(implicit flash: Flash)
+...
+@flash.get("success").getOrElse("Welcome!")
+...
+```
+
+And in your Action, specify an implicit request.
+
+```Scala
+def index = Action { implicit request =>
+	Ok(views.html.index())
+}
+```
+
+An implicit Flash will be provided to the view based on the implicit request
+
+If you see the error `could not find implicit value for parameter flash: play.api.mvc.Flash`, this means your Action doesn't have an implicit request in scope.
