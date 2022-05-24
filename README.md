@@ -982,3 +982,165 @@ def save = Action(parse.maxLength(1024 * 10, storeInUserFile)) { request =>
 	Ok("Saved the request content to " + request.body)
 }
 ```
+### Action Composition
+There are multiple ways to declare an action, such as with a request parameter, without a request parameter, with a body parser. These methods for building actions are all defined by the `ActionBuilder` trait with the `Action` object used to declare an action being an instance of this trait.
+
+In most applications, you will want to have multiple action builders (such as for logging, authentication, generic functionality). Reusable action code can be implemented by wrapping actions.
+
+```Scala
+import play.api.mvc._
+
+case class Logging[A](action: Action[A]) extends Action[A] with play.api.Logging {
+	def apply (request: Request[A]: Future[Result]) = {
+		logger.info("Calling action")
+		action(request)
+	}
+	override def parser = action.parser
+	override def executionContext = action.executionContext
+}
+```
+
+You can also use the `Action` action builder to uild actions without defining your own action class.
+
+```Scala
+import play.api.mvc._
+
+def logging[A](action: Action[A]) = Action.async(action.parser) { request =>
+	logger.info("Calling action")
+	action(request)
+}
+```
+
+Actions can be mixed into action builders using the `composeAction` method.
+
+```Scala
+class LoggingAction @Inject() (parser: BodyParsers.Default)(implicit ec: ExecutionContext) extends ActionBuilderImpl(parser) {
+	override def invokeBlock[A](request: Request[A], block: (Request[A]) => Future[Result]) = {
+	block(request)
+	}
+	override def composeAction[A](action: Action[A]) = new Logging(action)
+}
+```
+
+Now you can use the builder in the same way as before.
+
+```Scala
+def index = loggingAction {
+	Ok("Hello World")
+}
+```
+
+You can also mix in wrapping actions without the action builder.
+
+```Scala
+def index = Logging {
+	Action {
+		Ok("Hello World")
+	}
+}
+```
+
+You can also use action composition to read and modify the incoming request object.
+
+```Scala
+import play.api.mvc._
+import play.api.mvc.request.RemoteConnection
+
+def xForwardedFor[A](action: action[A]) = Action.async(action.parser) { request =>
+	val newRequest = request.headers.get("X-Forwarded-For") match {
+		case None => request
+		case Some(xff) =>
+			val xffConnection = RemoteConnection(xff, request.connection.secure, None)
+			request.withConnection(xffConnection)
+	}
+	action(newRequest)
+}
+```
+
+Or modify the returned result.
+
+```Scala
+import play.api.mvc._
+
+def addUaHeader[A](action: Action[A]) = Action.async(action.parser) { request =>
+	action(request).map(_.withHeaders("X-UA-Compatible" -> "Chrome=1")
+}
+```
+
+#### Different Request Types
+You may want to add context to, or perform validation on, the request itself. `ActionFunction` is a function on the request that takes both the input request type and the output type as parameters: `trait ActionFunction[-R[_], +P[_]] extends AnyRef`.
+
+The pre-defined traits implementing `ActionFunction` are:
+
+- `ActionTransformer` can change the request, for example adding additional information
+- `ActionFilter` can selectively intercept requests, for example to throw errors, without changing the request value
+- `ActionRefiner` is the general case for both `ActionTransformer` and `ActionFilter`
+- `ActionBuilder` is the special case of functions that take `Request` as input and can thus build actions
+
+You can also define your own `ActionFunction` by implementing the `invokeBlock` method.
+
+#### Authentication
+Authentication is one of the most common use cases for action functions. While Play provides a built-in authentication action builder for simple cases, it is common to write a custom authentication helper.
+
+```Scala
+import play.api.mvc._
+
+class UserRequest[A](val username: Option[String], request: Request[A]) extends WrappedRequest[A](request)
+
+class UserAction @Inject() (val parser: BodyParsers.Default)(implicit val executionContext: ExecutionContext) extends ActionBuilder[UserRequest, AnyContent] with ActionTransformer[Request, UserRequest] {
+	def transform[A](request: Request[A]) = Future.successful {
+	new UserRequest(request.session.get("username"), request)
+	}
+}
+```
+
+#### Adding Information to Requests
+Say you had multiple routes in a REST API under the `/items/:itemId` path and each of these need to look up the item. It may be useful to put this logic into an action function.
+
+First, you'd create a request object that adds an `Item` to `UserRequest`.
+
+```Scala
+import play.api.mvc._
+
+class ItemRequest[A](val item: Item, request: UserRequest[A]) extends WrappedRequest[A](request) {
+	def username = request.username
+}
+```
+
+Next, you'd create an action refiner that looks up that item and returns either an error or a new `ItemRequest`.
+
+```Scala
+def ItemAction(itemId: String)(impliit ec: ExecutionContext) = new ActionRefiner[UserRequest, ItemRequest] {
+	def executionContext = ec
+	def refine[A](input: UserRequest[A]) = Future.successful {
+		ItemDao
+			.findById(itemId)
+			.map(new ItemRequest(_, input))
+			.toRight(NotFound)
+	}
+}
+```
+
+#### Validating Requests
+You might want an action function that validates whether a request should continue. For example, whether the user from `UserAction` has permission to access the item from `ItemAction`, and if not, return an error.
+
+```Scala
+def PermissionCheckAction(implicit ec: ExecutionContext) = new ActionFilter[ItemRequest] {
+	def executionContext = ec
+	def filter[A](input: ItemRequest[A]) = Future.successful {
+		if(!input.item.accessiblebyUser(input.username))
+			Some(Forbidden)
+		else
+			None
+	}
+}
+```
+
+You can chain action functions together, starting with an `ActionBuilder` , using `useThen` to create an action.
+
+```Scala
+def tagItem(itemId: String, tag: String)(implicit ec: ExecutionContext) = userAction.andThen(ItemAction(itemId)).andThen(PermissionCheckAction) { request =>
+	request.item.addTag(tag)
+	Ok("User " + request.username + " tagged " + request.item.id)
+}
+```
