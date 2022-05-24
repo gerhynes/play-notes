@@ -891,3 +891,94 @@ def index = Action { implicit request =>
 An implicit Flash will be provided to the view based on the implicit request
 
 If you see the error `could not find implicit value for parameter flash: play.api.mvc.Flash`, this means your Action doesn't have an implicit request in scope.
+
+### Body Parsers
+A HTTP request consists of a header and a body. Since the header is usually small it can be safely buffered in memory. In Play, it's modelled using the `RequestHeader` class.
+
+The HTTP body can potentially be very long and so is modelled as a stream. If a request body payload is small, and can be modelled in memory, Play uses a `BodyParser` abstraction.
+
+Since Play is asynchronous, it doesn't use the traditional, blocking `InputStream` and instead uses Akka Streams (an implementation of Reactive Streams).
+
+#### More About Actions
+An `Action` uses a `BodyParser[A]` to retrieve a value of type `A` from the HTTP request and to build a `Request[A]` object that is passed to the action code.
+
+```Scala
+trait Action[A] extends (Request[A] => Result) {
+	def parser: BodyParser[A]
+}
+
+trait Request[+A] extends RequestHeader {
+	def body: A
+}
+```
+
+You can use any Scala type as the request body (for example, `String`, `NodeSeq`, `Array[Byte]`, `JsonValue`, or `java.io.File`) as long as you have a body parser able to process it.
+
+#### The Built-in Body Parsers
+Play's built-in body parsers will work for most situations, incluidng JSON, XML, forms and plaintext bodies such as Strings and byte bodies such as ByteString.
+
+The default body parser will look at the incoming `Content-Type` header and parse the body accordingly. For example, `application/json` will be parsed as a `JsValue` while `application/x-www-form-urlencoded` will be parsed as a `Map[String, Seq[String]]`.
+
+The default body parser produces a body of type `AnyContent`. The various types supported by `AnyContent` are accessible via `as` methods, such as `asJson`, which returns an `Option` of the body type.
+
+```Scala
+def save = Action { request: Request[AnyContent] =>
+	val body: AnyContent = request.body
+	val jsonBody: Option[JsValue] = body.asJson
+
+// Expecting json request body
+	jsonBody
+		.map { json =>
+			Ok("Got: " + (json \ "name").as[String])
+		}
+		.getOrElse {
+			BadRequest("Expecting application/json request body")	
+		}
+}
+```
+
+The default body parser supports the following mappings:
+- text/plain: `String`, available via `asText`
+- application/json: `JsValue`, accessible via `asJson`
+- application/xml, text/xml or application/XXX+xml: `scala.xml.NodeSeq`, accessible via `asXml`
+- application/x-www-form-urlencoded: `Map[String, Seq[String]]`, accessible via `asFormUrlEncoded`
+- multipart/form-data: `MultipartFormData`, accessible via `asMultipartFormData`
+- Any other content type: `RawBuffer`, accessible via `asRaw`
+
+The default body parser tries to determine if the request has a body before it tries to parse. The `Content-Length` or `Transfer-Encoding` headers signal the presence of a body.
+
+#### Using an Explicit Body Parser
+You can expicitly select a body parser by passing one to the `Action`, `apply` or `async` method.
+
+Play provides a number of body parsers through the `PlayBodyParsers` trait, which can be injected into a controller.
+
+For example, to define a an action expecting a json body:
+
+```Scala
+def save = Action(parse.json) { request: Request[JsValue] =>
+	Ok("Got: " + (request.body \ "name")as[String])
+}
+```
+
+The json body parser will validate that a request has a `Content-Type` of `application/json` and will return a `415 Unsupported Media Type` response if the request doesn't meet that expectation. For this reason, the body is a `JsValue` rather than `Option[JsValue]` as it has already been checked.
+
+#### Max Content Length
+Text-based body parsers (such as text, json, xml or formUrlEncoded) use a max content length because they have to load all the content into memory. By default, the max content length they will parse is 100KB. This can be overriden by specifying the `play.http.parser.maxMemoryBuffer` property in `application.conf`: `play.http.parser.maxMemoryBuffer=128K`.
+
+For parsers that buffer content on disk (such as the raw parser or `multipart/form-data`) the max content length is specified using the `play.http.parser.maxDiskBuffer` property, which defaults to 10MB. The `multipart/form-data` parser also enforces the text max length property for the aggregate of the data fields.
+
+You can override the default max length for a given action:
+
+```Scala
+def save = Action(parse.text(maxLength = 1024 * 10)) { request: request[String] =>
+	Ok("Got: " + text)
+}
+```
+
+You can also wrap any body parser with `maxLength`:
+
+```Scala
+def save = Action(parse.maxLength(1024 * 10, storeInUserFile)) { request =>
+	Ok("Saved the request content to " + request.body)
+}
+```
