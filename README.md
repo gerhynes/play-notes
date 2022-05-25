@@ -285,7 +285,7 @@ object PostResource {
 ```
 
 ## Main Concepts
-### Configuration API
+## Configuration API
 Play provides a Scala wrapper, `Configuration`, around the Typesafe config library.
 
 Usually, you'll access a `Configuration` object through dependency injection.
@@ -352,8 +352,8 @@ config.get[AppConfig]("app.config")
 
 You can support optional configuration keys using the `getOptional[A]` method, which will return `null` if the key doesn't exist. But Play recommends setting optional keys to `null` in the configuration file and using `get[Option[A]]` instead. Reserve `getOptional[A]` for interfacing with libraries that use configuration in a non-standard way. 
 
-### HTTP Programming
-#### Actions, Controllers and Results
+## HTTP Programming
+### Actions, Controllers and Results
 An Action is a function (of type `play.api.mvc.Request => play.api.mvc.Result`) that handles a request and generates a result to be sent to the client.
 
 ```scala
@@ -410,7 +410,7 @@ Action(parse.json) { implicit request =>
 }
 ```
 
-#### Controllers Generate Actions
+### Controllers Generate Actions
 A controller is fundamentally an object that generates Action values. Controllers are usually defined as classes to take advantage of Dependency Injection.
 
 The simplest use case for an action generator method is a method with no parameters that returns an `Action` value.
@@ -436,7 +436,7 @@ def hello(name: String) = Action {
 }
 ```
 
-#### Results
+### Results
 Results are defined by `play.api.mvc.Result`. A relatively simple result from a controller method will be: a HTTP result with a status code, a set of headers, and a body.
 
 ```scala
@@ -471,7 +471,7 @@ val anyStatus    = Status(488)("Strange response type")
 
 All of these helpers can be found in the `play.api.mvc.Results` trait and companion object.
 
-#### Redirects
+### Redirects
 Redirecting the browser to another URL is another kind of simple result. These results don't take a response body. Again, there are helpers to create redirect results.
 
 ```scala
@@ -488,14 +488,14 @@ def index = Action {
 }
 ```
 
-#### Dummy Pages
+### Dummy Pages
 You can use an empty `Action` implementation defined as `TODO`. The result is a standard "Not implemented yet" result page.
 
 ```scala
 def index(name: String) = TODO
 ```
 
-### HTTP Routing
+## HTTP Routing
 The router is the component in charge of translating each incoming HTTP request into an Action.
 
 A HTTP request is seen as an event by Play. The event contains two main pieces of information.
@@ -505,11 +505,11 @@ A HTTP request is seen as an event by Play. The event contains two main pieces o
 
 The `routes` file defines the routes. This file is compiled, which means that route errors are shown directly in the browser during development.
 
-#### Dependency Injection
+### Dependency Injection
 
 Play's default routes generator creates a Router class that accepts controller instances in an `@Inject`-annotated constructor. This means the class can be used with dependency injection and can also be manually instantiated using the constructor.
 
-#### The `routes` file
+### The `routes` file
 
 The `conf/routes` file lists all routes used by the application. Each route consists of a HTTP method, a URL pattern and a call to an `Action` generator.
 
@@ -523,7 +523,7 @@ You can tell the routes file to use a different router under a specific prefix b
 ->      /api                        api.MyRouter
 ```
 
-#### URI Patterns
+### URI Patterns
 The URI pattern can be static `/users/all` or dynamic `/users/:id`. The default matching strategy for a dynamic part is defined by the regular expression `[^/]+`, meaning that any dynamic part defined as `:id` will match exactly one URI path segment. Unlike other pattern types, path segments are automatically URI-decoded in the route (before being passed to the controller) and encoded in the reverse route.
 
 The default matching strategy for a dynamic part is defined by the regular expression `[^/]+`, meaning that any dynamic part defined as `:id` will match exactly one URI path segment. Unlike other pattern types, path segments are automatically URI-decoded in the route, before being passed to your controller, and encoded in the reverse route.
@@ -546,7 +546,7 @@ GET   /items/$id<[0-9]+>    controllers.Items.show(id: Long)
 
 Just like with wildcard routes, the parameter is not decoded by the router or encoded by the reverse router. You’re responsible for validating the input.
 
-#### The Action Generator Method
+### The Action Generator Method
 The last part of the route must be a call to a method that returns an `Action`. This will usually be a controller action method.
 
 If the action method has parameters, these will be searched for in the request URI and extracted from either the URI path itself or from the query string.
@@ -625,10 +625,10 @@ GET   /api/list-items      controllers.Api.listItems(item: List[String])
 GET   /api/list-int-item
 ```
 
-#### Routing Priority
+### Routing Priority
 If multiple routes match the same request the first route in declaration order is used.
 
-#### Reverse Routing
+### Reverse Routing
 The router can also be used to generate a URL from within Scala. This lets you centralize all URI patterns in a single configuration file for easier refactoring.
 
 For each controller used in the routes file, the router will generate a "reverse controller" in the `routes` package, having the same action methods, with the same signature, but returning a `play.api.mvc.Call` instead of a `play.api.mvc.Action`.
@@ -669,7 +669,7 @@ def helloBob = Action {
 
 The reverse action method works by taking your parameters and substituting them back into the route pattern. In the case of path segments (such as `:id`), the value is encoded before the substitution is done. For regex and wildcard patterns, the string is substituted in raw form, since the value may span multiple segments.
 
-#### Relative Routes
+### Relative Routes
 The routes returned by `play.mvc.Call` are always absolute. This can lead to problems when requests to your web application are rewritten by HTTP proxies, load balancers and API gateways.
 
 Using a relative route can be useful when:
@@ -729,7 +729,7 @@ When requesting `/something/somethingelse/hello`, the generated HTML will look l
 </html>
 ```
 
-#### The Default Controller
+### The Default Controller
 Play includes a `Default` controller with a couple of useful actions. These can be invoked directly from the `routes` file.
 
 ```routes
@@ -748,25 +748,25 @@ GET   /posts      controllers.Default.todo
 
 You can redirect to an external website, but also to another action.
 
-#### Custom Routing
+### Custom Routing
 Play provides a DSL for defining embedded routers called the String Interpolating Routing DSL, or SIRD for short. This DSL has many uses, including embedding a light weight Play server, providing custom or more advanced routing capabilities to a regular Play application, and mocking REST services for testing.
 
-### Manipulating HTTP Results
-#### Changing the default `Content-Type`
+## Manipulating HTTP Results
+### Changing the default `Content-Type`
 The result content type is automatically inferred from the Scala value specified as the result body.
 
 For example `Ok("Hello World")` will set the `Content-Type` header to `text/plain`.
 
 You can use the `as` method to set a different `Content-Type` header: `Ok(<h1>Hello World</h1>).as(HTML)`.
 
-#### Manipulating HTTP Headers
+### Manipulating HTTP Headers
 You cna add or update any HTTP header.
 
 `Ok("Hello World").withHeaders(CACHE_CONTROL -> "max-age=3600", ETAG -> "xx")`
 
 Setting a header will discard the previous value if it existed.
 
-#### Setting and Discarding Cookies
+### Setting and Discarding Cookies
 You can add Cokkies to the HTTP response using the `withCookies` and `bakeCookies` methods.
 
 `Ok("Hello World").withCookies(Cooke("theme", "dark")).bakeCookies()`
@@ -779,7 +779,7 @@ Setting and discarding Cookies can be done in the same response.
 
 `result.withCookies(Cookie("theme", "dark")).discardingCookies(DiscardingCookie("discount"))`
 
-#### Changing the Charset for Text-based HTTP Responses
+### Changing the Charset for Text-based HTTP Responses
 Play handles the response charset automatically and uses `utf-8` by default. You can override it using the `play.api.mvc.Codec` class.
 
 ```scala
@@ -794,15 +794,15 @@ class Application @Inject() (cc: ControllerComponents) extends AbstractControlle
 
 Here, because there's an implicit charset value in scope, it will be used by the `Ok` method to convert messages into `ISO-8859-1` encoded bytes and generate the `text/html; charset=iso-8859-1` Content-Type header.
 
-#### Range Results
+### Range Results
 Play supports partial responses (a `206 Partial Content` response) if a satisfiable `Range` header is in the request. It also returns an `Accept-Ranges: bytes` for the delivered `Result`.
 
 When the request `Range` is not satisfiable, for example, if the range in the request’s `Range` header field does not overlap the current extent of the selected resource, then a HTTP status `416 Range Not Satisfiable` is returned.
 
-### Session and Flash Scopes
+## Session and Flash Scopes
 If you need to keep data across multiple HTTP requests, you can save it in the Session or the Flash scope. Data stored in the Session is available during the whole user session, while data stored in the flash scope is only available to the next request.
 
-#### Working with Cookies
+### Working with Cookies
 Session and Flash data are not stored in the server but are added to each subsequent HTTP Request, using HTTP cookies.
 
 For this reasong:
@@ -813,14 +813,14 @@ For this reasong:
 
 When you modify a cookie, you are providing information to the response and Play must parse it again to see the updated value. If you want to ensure the session information is current, you should always pair modification of a session with a redirect.
 
-#### Session Configuration
+### Session Configuration
 The default name for the Session cookie is `PLAY_SESSION`. This can be changed by configuring the `play.http.session.cookieName` key in `application.conf`.
 
 By default, there is no technical timeout for the Session. It expires when the user closes the browser. If you need a functional timeout for a specific application, you can set the `play.http.session.maxAge` key in `application.conf` and this will also set `play.http.session.jwt.expiresAfter` to the same value (in seconds).
 
 The `maxAge` property will remove the cookie from the browser and the JWT `exp` claim will be set in the cookie, making it invalid after the given duration.
 
-#### Storing Data in the Session
+### Storing Data in the Session
 Since the Session is a Cookie, it's also a HTTP header. You can manipulate the session data the same way you manipulate other result properties.
 
 The `withSession` method will replace the entire session.
@@ -835,7 +835,7 @@ You can remove a value from an incoming session the same way.
 
 `Redirect("/home").withSession(request.session - "theme")`
 
-#### Reading a Session Value
+### Reading a Session Value
 You can retrieve the incoming session from the HTTP request.
 
 ```Scala
@@ -851,12 +851,12 @@ def index = Action { request =>
 }
 ```
 
-#### Discarding a Session
+### Discarding a Session
 `withNewSession` will discard the existing session.
 
 `Redirect("/home").withNewSession`
 
-#### Flash Scope
+### Flash Scope
 The Flash scope works like a Session except data is kept for only one request.
 
 ```Scala
@@ -892,14 +892,14 @@ An implicit Flash will be provided to the view based on the implicit request
 
 If you see the error `could not find implicit value for parameter flash: play.api.mvc.Flash`, this means your Action doesn't have an implicit request in scope.
 
-### Body Parsers
+## Body Parsers
 A HTTP request consists of a header and a body. Since the header is usually small it can be safely buffered in memory. In Play, it's modelled using the `RequestHeader` class.
 
 The HTTP body can potentially be very long and so is modelled as a stream. If a request body payload is small, and can be modelled in memory, Play uses a `BodyParser` abstraction.
 
 Since Play is asynchronous, it doesn't use the traditional, blocking `InputStream` and instead uses Akka Streams (an implementation of Reactive Streams).
 
-#### More About Actions
+### More About Actions
 An `Action` uses a `BodyParser[A]` to retrieve a value of type `A` from the HTTP request and to build a `Request[A]` object that is passed to the action code.
 
 ```Scala
@@ -914,7 +914,7 @@ trait Request[+A] extends RequestHeader {
 
 You can use any Scala type as the request body (for example, `String`, `NodeSeq`, `Array[Byte]`, `JsonValue`, or `java.io.File`) as long as you have a body parser able to process it.
 
-#### The Built-in Body Parsers
+### The Built-in Body Parsers
 Play's built-in body parsers will work for most situations, incluidng JSON, XML, forms and plaintext bodies such as Strings and byte bodies such as ByteString.
 
 The default body parser will look at the incoming `Content-Type` header and parse the body accordingly. For example, `application/json` will be parsed as a `JsValue` while `application/x-www-form-urlencoded` will be parsed as a `Map[String, Seq[String]]`.
@@ -947,7 +947,7 @@ The default body parser supports the following mappings:
 
 The default body parser tries to determine if the request has a body before it tries to parse. The `Content-Length` or `Transfer-Encoding` headers signal the presence of a body.
 
-#### Using an Explicit Body Parser
+### Using an Explicit Body Parser
 You can expicitly select a body parser by passing one to the `Action`, `apply` or `async` method.
 
 Play provides a number of body parsers through the `PlayBodyParsers` trait, which can be injected into a controller.
@@ -962,7 +962,7 @@ def save = Action(parse.json) { request: Request[JsValue] =>
 
 The json body parser will validate that a request has a `Content-Type` of `application/json` and will return a `415 Unsupported Media Type` response if the request doesn't meet that expectation. For this reason, the body is a `JsValue` rather than `Option[JsValue]` as it has already been checked.
 
-#### Max Content Length
+### Max Content Length
 Text-based body parsers (such as text, json, xml or formUrlEncoded) use a max content length because they have to load all the content into memory. By default, the max content length they will parse is 100KB. This can be overriden by specifying the `play.http.parser.maxMemoryBuffer` property in `application.conf`: `play.http.parser.maxMemoryBuffer=128K`.
 
 For parsers that buffer content on disk (such as the raw parser or `multipart/form-data`) the max content length is specified using the `play.http.parser.maxDiskBuffer` property, which defaults to 10MB. The `multipart/form-data` parser also enforces the text max length property for the aggregate of the data fields.
@@ -982,7 +982,7 @@ def save = Action(parse.maxLength(1024 * 10, storeInUserFile)) { request =>
 	Ok("Saved the request content to " + request.body)
 }
 ```
-### Action Composition
+## Action Composition
 There are multiple ways to declare an action, such as with a request parameter, without a request parameter, with a body parser. These methods for building actions are all defined by the `ActionBuilder` trait with the `Action` object used to declare an action being an instance of this trait.
 
 In most applications, you will want to have multiple action builders (such as for logging, authentication, generic functionality). Reusable action code can be implemented by wrapping actions.
@@ -1067,7 +1067,7 @@ def addUaHeader[A](action: Action[A]) = Action.async(action.parser) { request =>
 }
 ```
 
-#### Different Request Types
+### Different Request Types
 You may want to add context to, or perform validation on, the request itself. `ActionFunction` is a function on the request that takes both the input request type and the output type as parameters: `trait ActionFunction[-R[_], +P[_]] extends AnyRef`.
 
 The pre-defined traits implementing `ActionFunction` are:
@@ -1079,7 +1079,7 @@ The pre-defined traits implementing `ActionFunction` are:
 
 You can also define your own `ActionFunction` by implementing the `invokeBlock` method.
 
-#### Authentication
+### Authentication
 Authentication is one of the most common use cases for action functions. While Play provides a built-in authentication action builder for simple cases, it is common to write a custom authentication helper.
 
 ```Scala
@@ -1094,7 +1094,7 @@ class UserAction @Inject() (val parser: BodyParsers.Default)(implicit val execut
 }
 ```
 
-#### Adding Information to Requests
+### Adding Information to Requests
 Say you had multiple routes in a REST API under the `/items/:itemId` path and each of these need to look up the item. It may be useful to put this logic into an action function.
 
 First, you'd create a request object that adds an `Item` to `UserRequest`.
@@ -1121,7 +1121,7 @@ def ItemAction(itemId: String)(impliit ec: ExecutionContext) = new ActionRefiner
 }
 ```
 
-#### Validating Requests
+### Validating Requests
 You might want an action function that validates whether a request should continue. For example, whether the user from `UserAction` has permission to access the item from `ItemAction`, and if not, return an error.
 
 ```Scala
@@ -1144,3 +1144,111 @@ def tagItem(itemId: String, tag: String)(implicit ec: ExecutionContext) = userAc
 	Ok("User " + request.username + " tagged " + request.item.id)
 }
 ```
+## Handling Errors
+There are two main types of errors that a HTTP application can return: client errors (where the connecting client did something wrong) and server errors (where something went wrong with the server).
+
+In many circumstances, Play automatically detects client errors such as malformed headers, unsupported content types and requests for resources that can't be found. Similarly, if your action code throws an error, Play will catch this and generate a server error page to send to the client.
+
+The interface through which Play handles errors is `HttpErrorHandler`, which defines thwo methods `onClientError` and `onServerError`.
+
+### Handling Errors in a JSON API
+By default, Play returns errors in a HTML format. For a JSON API, you can use the `JsonHttpErrorHandler` class to return errors formatted as JSON.
+
+This can be configured in `application.conf`.
+
+```
+play.http.errorHandler = play.api.http.JsonHttpErrorHandler
+```
+
+If your application uses a mix of HTML and JSON, you can use the `HtmlOrJsonHttpErrorHandler` error handler which delegates to either the HTML or JSON error handler based on the preferences specified in the client's `Accept` header.
+
+```
+play.http.errorHandler = play.api.http.HtmlOrJsonHttpErrorHandler
+```
+
+### Custom Error Handlers
+If you're using runtime dependency injection (such as Guice), a custom error handler can be loaded at runtime. In the root package, create an `ErrorHandler` class that implements `HttpErrorHandler`.
+
+If you place your error handler in the root package and name it `ErrorHandler`, Play will use it by default. 
+
+```scala
+import play.api.http.HttpErrorHandler
+import play.api.mvc._
+import play.api.mvc.Results._
+import scala.concurrent._
+import javax.inject.Singleton
+
+@Singleton
+class ErrorHandler extends HttpErrorHandler {
+	def onClientError(request: RequestHeader, statusCode: Int, message: String): Future[Result] = {
+	Future.successful(
+		Status(statusCode)("A client error occurred: " + message)
+	)
+	}
+
+	def onServerError(request: RequestHeader, exception: Throwable): Future[Result] = {
+	Future.successful(
+	InternalServerError("A server error occurred: " + exception.getMessage))
+	}
+}
+```
+
+If you need to place the error handler elsewhere or configure different error handlers for different environments, add a configuration property pointing to the custom error handler.
+
+```
+play.http.errorHandler = "com.example.ErrorHandler"
+```
+
+For example, if you want to use the default error handler for the client's preferredmedia type and add a custom error handler for another media type, you can extend the `PreferredMediaTypeErrorHandler`.
+
+```scala
+import javax.inject._
+import play.api.http._
+
+class MyHttpErrorHandler @Inject() (
+    jsonHandler: JsonHttpErrorHandler,
+    htmlHandler: DefaultHttpErrorHandler,
+    textHandler: MyTextHttpErrorHandler
+) extends PreferredMediaTypeHttpErrorHandler(
+      "application/json" -> jsonHandler,
+      "text/html"        -> htmlHandler,
+      "text/plain"       -> textHandler
+    )
+```
+
+### Extending the Default Error Handler
+Play's default error handler provides a lot of useful functionality, such as rendering to the client the line of code that caused the exception. You might want to provide cutom server errors in production, while maintaining this functionality in development. 
+
+To facilitate this, Play's `DefaultHttpErrorHandler` has convenience methods that you can override so that you can mix your custom logic with Play's existing behaviour.
+
+```scala
+import javax.inject._
+
+import play.api.http.DefaultHttpErrorHandler
+import play.api._
+import play.api.mvc._
+import play.api.mvc.Results._
+import play.api.routing.Router
+import scala.concurrent._
+
+@Singleton
+class ErrorHandler @Inject() (
+    env: Environment,
+    config: Configuration,
+    sourceMapper: OptionalSourceMapper,
+    router: Provider[Router]
+) extends DefaultHttpErrorHandler(env, config, sourceMapper, router) {
+  override def onProdServerError(request: RequestHeader, exception: UsefulException) = {
+    Future.successful(
+      InternalServerError("A server error occurred: " + exception.getMessage)
+    )
+  }
+
+  override def onForbidden(request: RequestHeader, message: String) = {
+    Future.successful(
+      Forbidden("You're not allowed to access this resource.")
+    )
+  }
+}
+```
+
